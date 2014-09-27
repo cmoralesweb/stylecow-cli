@@ -1,0 +1,22 @@
+{
+  "name": "stylecow-cli",
+  "description": "Stylecow's command line interface",
+  "version": "0.1.0",
+  "author": "Oscar Otero <oom@oscarotero.com>",
+  "homepage": "https://github.com/stylecow/stylecow-cli",
+  "bugs": "https://github.com/stylecow/stylecow-cli/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stylecow/stylecow-cli.git"
+  },
+  "dependencies": {
+    "commander": "*",
+    "findup-sync": "^0.1.3",
+    "glob": "*",
+    "inquirer": "*"
+  },
+  "bin": {
+    "stylecow": "./bin/stylecow"
+  },
+  "license": "MIT"
+}
