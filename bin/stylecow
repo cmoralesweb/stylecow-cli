@@ -3,6 +3,13 @@
 var program = require('commander');
 var fs = require('fs');
 var path = require('path');
+var findup = require('findup-sync');
+
+var stylecow = findup('node_modules/stylecow/lib/index.js');
+
+if (stylecow) {
+	stylecow = require(stylecow);
+}
 
 program.version(require('../package.json').version);
 
@@ -10,15 +17,13 @@ program.version(require('../package.json').version);
 // EXECUTE
 
 program
-	.command('execute <config>')
-	.description('converts the css using a config file')
+	.command('execute [<config>]')
+	.description('converts the css using a config file (by default "./stylecow.json")')
 	.option('-i, --input <file>', 'Use a specific input file instead the defined in the config file')
 	.option('-o, --output <file>', 'Use a specific output file instead the defined in the config file')
 	.option('-c, --code <name>', 'Use a specific code style instead the defined in the config file')
 	.option('-w, --watch', 'watches the changes in the input css files')
 	.action(function (configFile, command) {
-		var stylecow = require('../lib');
-
 		if (!stylecow) {
 			console.log('');
 			console.log('  error: Unable to find stylecow');
@@ -26,9 +31,9 @@ program
 			return;
 		}
 
-		configFile = path.resolve(process.cwd(), configFile);
+		configFile = path.resolve(process.cwd(), configFile || './stylecow.json');
 
-		var config = getConfig(configFile),
+		var config = readConfig(configFile),
 			basePath = path.dirname(configFile),
 			input, output, code;
 
@@ -63,7 +68,7 @@ program
 		stylecow.setConfig(config);
 
 		if (fs.lstatSync(input).isFile()) {
-			return convert(stylecow, input, output, command.watch);
+			return convert(input, output, command.watch);
 		}
 
 		if (fs.lstatSync(input).isDirectory()) {
@@ -71,14 +76,14 @@ program
 
 			return glob('**/*.css', { cwd: path.resolve(input) }, function (er, files) {
 				files.forEach(function (file) {
-					convert(stylecow, path.join(input, file), output ? path.join(output, file) : null, command.watch);
+					convert(path.join(input, file), output ? path.join(output, file) : null, command.watch);
 				});
 			});
 		}
 	});
 
 
-function convert (stylecow, input, output, watch) {
+function convert (input, output, watch) {
 	var css = stylecow.convertFromFile(input);
 
 	if (output) {
@@ -111,7 +116,7 @@ function convert (stylecow, input, output, watch) {
 						fs.unwatchFile(f);
 					});
 
-					convert(stylecow, input, output, watch);
+					convert(input, output, watch);
 				}
 			});
 		});
@@ -122,13 +127,13 @@ function convert (stylecow, input, output, watch) {
 // CONFIG
 
 program
-	.command('init')
+	.command('init [<config>]')
 	.description('Creates a new configuration file')
-	.action(function config (command) {
-		var defaults = require('../lib/config.js');
+	.action(function config (configFile, command) {
+		var defaults = defaultConfig(configFile);
 
 		modifyConfig(defaults, function (config, file) {
-			saveConfig(config, file);
+			writeConfig(config, file);
 		});
 	});
 
@@ -267,7 +272,7 @@ function modifyConfig (config, callback) {
 
 							return true;
 						},
-						default: 'stylecow_config.json'
+						default: 'stylecow.json'
 					}
 				], function (answers) {
 					callback(newConfig, answers.file);
@@ -277,7 +282,7 @@ function modifyConfig (config, callback) {
 	});
 }
 
-function getConfig (file) {
+function readConfig (file) {
 	if (fs.existsSync(file)) {
 		return require(file);
 	}
@@ -289,11 +294,59 @@ function getConfig (file) {
 	process.exit();
 }
 
-function saveConfig (value, file) {
+function writeConfig (value, file) {
 	fs.writeFileSync(file, JSON.stringify(value, null, '\t'));
 
 	console.log('success: Config file saved: `' + file + '`');
 	console.log('');
+}
+
+function defaultConfig (file) {
+	var codeStyles = ["normal", "minify"], defaults;
+
+	if (file) {
+		defaults = readConfig(configFile = path.resolve(process.cwd(), file));
+		defaults.codeStyles = codeStyles;
+
+		return defaults;
+	}
+
+	//Default values
+	defaults = {
+		code: "normal",
+		support: {
+			"explorer": 8.0,
+			"firefox": 30.0,
+			"chrome": 35.0,
+			"safari": 6.0,
+			"opera": 22.0,
+			"android": 4.0,
+			"ios": 6.0
+		},
+		plugins: [],
+		codeStyles: codeStyles
+	};
+
+	//Search for installed stylecow and plugins
+	var node_modules = findup('node_modules/');
+
+	if (node_modules) {
+		var pluginPrefix = 'stylecow-plugin-';
+
+		if (stylecow) {
+			defaults = stylecow.defaults;
+			defaults.codeStyles = Object.keys(stylecow.codeStyles);
+			pluginPrefix = stylecow.pluginPrefix;
+		}
+
+		var len = pluginPrefix.length;
+
+		defaults.plugins = fs.readdirSync(node_modules).filter(function (value) {
+				return value.slice(0, len) === pluginPrefix;
+			}).map(function (value) {
+				return value.slice(len);
+			}).sort();
+	}
 }
 
 program.parse(process.argv);
