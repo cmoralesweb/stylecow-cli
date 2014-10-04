@@ -9,6 +9,12 @@ var stylecow = findup('node_modules/stylecow/lib/index.js');
 
 if (stylecow) {
 	stylecow = require(stylecow);
+} else {
+	stylecow = findup('stylecow/lib/index.js');
+
+	if (stylecow) {
+		stylecow = require(stylecow);
+	}
 }
 
 program.version(require('../package.json').version);
