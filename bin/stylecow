@@ -23,6 +23,7 @@ program
 	.option('-o, --output <file>', 'Use a specific output file instead the defined in the config file')
 	.option('-c, --code <name>', 'Use a specific code style instead the defined in the config file')
 	.option('-w, --watch', 'watches the changes in the input css files')
+	.option('-s, --socket', 'Browser live reload using a web socket')
 	.action(function (configFile, command) {
 		if (!stylecow) {
 			console.log('');
@@ -35,7 +36,7 @@ program
 
 		var config = readConfig(configFile),
 			basePath = path.dirname(configFile),
-			input, output, code;
+			input, output, code, socket;
 
 		input = command.input || config.input;
 
@@ -67,61 +68,91 @@ program
 
 		stylecow.setConfig(config);
 
-		if (fs.lstatSync(input).isFile()) {
-			return convert(input, output, command.watch);
+		//Open the websocket server
+		if (command.socket) {
+			var WebSocketServer = require('ws').Server,
+				wss = new WebSocketServer({port: 8080});
+
+			console.log('WebSocket server created in ws://127.0.0.1:8080');
+			console.log('Put this code in the html page:');
+			console.log('');
+			console.log('<script type="text/javascript">');
+			console.log("(function(){var ws,css=document.createElement('style');document.head.appendChild(css);function socket(){ws=new WebSocket('ws://127.0.0.1:8080');ws.onmessage=function(e){");
+			if (output) {
+				console.log("(document.querySelector('link[href$=\"" + path.basename(output) + "\"]')||{}).href='';");
+			}
+			console.log("css.innerHTML=e.data;};}setInterval(function(){if(ws){if(ws.readyState!==1){socket();}}else{socket();}},1000);})();");
+			console.log('</script>');
+			console.log('');
+
+			wss.on('connection', function (ws) {
+				socket = ws;
+			});
 		}
 
-		if (fs.lstatSync(input).isDirectory()) {
-			var glob = require('glob');
+		//Converts the code and output the result
+		var executeConvert = function (input, output) {
+			var css = stylecow.convertFromFile(input);
+			var code = css.toCode();
 
-			return glob('**/*.css', { cwd: path.resolve(input) }, function (er, files) {
-				files.forEach(function (file) {
-					convert(path.join(input, file), output ? path.join(output, file) : null, command.watch);
+			if (output) {
+				var dir = path.dirname(output);
+
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir);
+				}
+
+				fs.writeFileSync(output, code);
+
+				console.log('success: Generated "' + output + '"');
+			} else {
+				console.log('');
+				console.log(code);
+				console.log('');
+			}
+
+			if (socket) {
+				socket.send(css.toCode());
+				console.log('success: Code sent to socket');
+			}
+
+			return css;
+		}
+
+		//Convert the code
+		var css = executeConvert(input, output);
+
+		//Watch changes
+		if (command.watch || command.socket) {
+			var gaze = require('gaze');
+			var cwd = process.cwd();
+			var files = [];
+
+			css.files.forEach(function (file) {
+				files.push(path.relative(cwd, file));
+			});
+
+			console.log('Waiting for changes...');
+			console.log('');
+
+			gaze(files, function (err, watcher) {
+				watcher.on('changed', function (filepath) {
+					console.log('');
+					console.log('changed detected: ' + filepath);
+
+					executeConvert(input, output).files.forEach(function (file) {
+						file = path.relative(cwd, file);
+
+						if (files.indexOf(file) === -1) {
+							files.push(file);
+
+							watcher.add([file]);
+						}
+					});
 				});
 			});
 		}
 	});
-
-
-function convert (input, output, watch) {
-	var css = stylecow.convertFromFile(input);
-
-	if (output) {
-		var dir = path.dirname(output);
-
-		if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir);
-		}
-
-		fs.writeFileSync(output, css.toCode());
-
-		console.log('success: Generated "' + output + '"');
-	} else {
-		console.log('');
-		console.log(css.toCode());
-		console.log('');
-	}
-
-	if (watch) {
-		console.log('Waiting for changes...');
-		console.log('');
-		
-		css.files.forEach(function (file) {
-			fs.watchFile(file, {persistent: true, interval: 2000}, function (curr, prev) {
-				if (curr.mtime !== prev.mtime) {
-					console.log('changed detected: ' + file);
-					console.log('');
-					
-					css.files.forEach(function (f) {
-						fs.unwatchFile(f);
-					});
-
-					convert(input, output, watch);
-				}
-			});
-		});
-	}
-}
 
 
 // CONFIG
