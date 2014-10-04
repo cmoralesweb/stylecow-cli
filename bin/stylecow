@@ -77,11 +77,7 @@ program
 			console.log('Put this code in the html page:');
 			console.log('');
 			console.log('<script type="text/javascript">');
-			console.log("(function(){var ws,css=document.createElement('style');document.head.appendChild(css);function socket(){ws=new WebSocket('ws://127.0.0.1:8080');ws.onmessage=function(e){");
-			if (output) {
-				console.log("(document.querySelector('link[href$=\"" + path.basename(output) + "\"]')||{}).href='';");
-			}
-			console.log("css.innerHTML=e.data;};}setInterval(function(){if(ws){if(ws.readyState!==1){socket();}}else{socket();}},1000);})();");
+			console.log("(function(){var ws;function socket(){ws=new WebSocket('ws://127.0.0.1:8080');ws.onmessage=function(e){Array.prototype.forEach.call(document.querySelectorAll('link[rel=\"stylesheet\"]'),function(link){link.href=link.href.replace(/\\?.*/,'')+'?t='+(new Date).getTime();});};}setInterval(function(){if(ws){if(ws.readyState!==1){socket();}}else{socket();}},1000);})();");
 			console.log('</script>');
 			console.log('');
 
