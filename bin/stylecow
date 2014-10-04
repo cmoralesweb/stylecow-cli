@@ -374,6 +374,8 @@ function defaultConfig (file) {
 				return value.slice(len);
 			}).sort();
 	}
+
+	return defaults;
 }
 
 program.parse(process.argv);
