@@ -83,7 +83,7 @@ program
 			console.log('Put this code in the html page:');
 			console.log('');
 			console.log('<script type="text/javascript">');
-			console.log("(function(){var ws;function socket(){ws=new WebSocket('ws://127.0.0.1:8080');ws.onmessage=function(e){Array.prototype.forEach.call(document.querySelectorAll('link[rel=\"stylesheet\"]'),function(link){link.href=link.href.replace(/\\?.*/,'')+'?t='+(new Date).getTime();});};}setInterval(function(){if(ws){if(ws.readyState!==1){socket();}}else{socket();}},1000);})();");
+			console.log(fs.readFileSync('ws-script.js', { encoding: 'utf-8'}));
 			console.log('</script>');
 			console.log('');
 
@@ -130,7 +130,7 @@ program
 			var cwd = process.cwd();
 			var files = [];
 
-			css.files.forEach(function (file) {
+			getFiles(css).forEach(function (file) {
 				files.push(path.relative(cwd, file));
 			});
 
@@ -142,7 +142,7 @@ program
 					console.log('');
 					console.log('changed detected: ' + filepath);
 
-					executeConvert(input, output).files.forEach(function (file) {
+					getFiles(executeConvert(input, output)).forEach(function (file) {
 						file = path.relative(cwd, file);
 
 						if (files.indexOf(file) === -1) {
@@ -313,6 +313,21 @@ function modifyConfig (config, callback) {
 			}
 		});
 	});
+}
+
+function getFiles (css) {
+	css.search()
+		.filter(function (child) {
+			return (child._data && child._data['sourceFile']);
+		})
+		.map(function (child) {
+			return child._data['sourceFile'];
+		})
+		.forEach(function (file) {
+			files[file] = null;
+		});
+
+	return Object.getOwnPropertyNames(files);
 }
 
 function readConfig (file) {
