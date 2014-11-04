@@ -316,6 +316,8 @@ function modifyConfig (config, callback) {
 }
 
 function getFiles (css) {
+	var files = {};
+
 	css.search()
 		.filter(function (child) {
 			return (child._data && child._data['sourceFile']);
