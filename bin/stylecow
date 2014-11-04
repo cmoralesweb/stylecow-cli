@@ -83,7 +83,7 @@ program
 			console.log('Put this code in the html page:');
 			console.log('');
 			console.log('<script type="text/javascript">');
-			console.log(fs.readFileSync('ws-script.js', { encoding: 'utf-8'}));
+			console.log(fs.readFileSync(__dirname + '/ws-script.js', { encoding: 'utf-8'}));
 			console.log('</script>');
 			console.log('');
 
@@ -317,9 +317,10 @@ function modifyConfig (config, callback) {
 
 function getFiles (css) {
 	var files = {};
+	var nodes = css.search();
+	nodes.push(css);
 
-	css.search()
-		.filter(function (child) {
+	nodes.filter(function (child) {
 			return (child._data && child._data['sourceFile']);
 		})
 		.map(function (child) {
