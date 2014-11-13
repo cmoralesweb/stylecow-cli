@@ -30,6 +30,7 @@ program
 	.option('-c, --code <name>', 'Use a specific code style instead the defined in the config file')
 	.option('-w, --watch', 'watches the changes in the input css files')
 	.option('-s, --socket', 'Browser live reload using a web socket')
+	.option('-m, --map', 'Creates a source map file')
 	.action(function (configFile, command) {
 		if (!stylecow) {
 			console.log('');
@@ -44,6 +45,8 @@ program
 			basePath = path.dirname(configFile),
 			input, output, code, socket;
 
+		stylecow.cd(basePath);
+
 		input = command.input || config.input;
 
 		if (!input) {
@@ -53,20 +56,7 @@ program
 			return;
 		}
 
-		input = path.resolve(basePath, input);
-
-		if (!fs.existsSync(input)) {
-			console.log('');
-			console.log('  error: Input file `' + input + '` not found');
-			console.log('');
-			return;
-		}
-
 		output = command.output || config.output;
-
-		if (output) {
-			output = path.resolve(basePath, output);
-		}
 
 		if (command.code) {
 			config.code = command.code;
@@ -93,28 +83,24 @@ program
 		}
 
 		//Converts the code and output the result
-		var executeConvert = function (input, output) {
+		var executeConvert = function (input, output, map) {
 			var css = stylecow.convertFromFile(input);
-			var code = css.toCode();
+			var code = new stylecow.Code(css, {
+				sourceMap: map,
+				output: output
+			});
 
 			if (output) {
-				var dir = path.dirname(output);
-
-				if (!fs.existsSync(dir)) {
-					fs.mkdirSync(dir);
-				}
-
-				fs.writeFileSync(output, code);
-
+				code.save();
 				console.log('success: Generated "' + output + '"');
 			} else {
 				console.log('');
-				console.log(code);
+				console.log(code.getCode());
 				console.log('');
 			}
 
 			if (socket) {
-				socket.send(css.toCode());
+				socket.send(code.getCode());
 				console.log('success: Code sent to socket');
 			}
 
@@ -122,7 +108,7 @@ program
 		}
 
 		//Convert the code
-		var css = executeConvert(input, output);
+		var css = executeConvert(input, output, command.map);
 
 		//Watch changes
 		if (command.watch || command.socket) {
@@ -142,7 +128,7 @@ program
 					console.log('');
 					console.log('changed detected: ' + filepath);
 
-					getFiles(executeConvert(input, output)).forEach(function (file) {
+					getFiles(executeConvert(input, output, command.map)).forEach(function (file) {
 						file = path.relative(cwd, file);
 
 						if (files.indexOf(file) === -1) {
