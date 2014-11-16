@@ -30,7 +30,7 @@ program
 	.option('-c, --code <name>', 'Use a specific code style instead the defined in the config file')
 	.option('-w, --watch', 'watches the changes in the input css files')
 	.option('-s, --socket', 'Browser live reload using a web socket')
-	.option('-m, --map', 'Creates a source map file')
+	.option('-m, --map <dest>', 'Generates a source map? (false|embed|<file.map>)')
 	.action(function (configFile, command) {
 		if (!stylecow) {
 			console.log('');
@@ -45,7 +45,7 @@ program
 			basePath = path.dirname(configFile),
 			input, output, code, socket;
 
-		stylecow.cd(basePath);
+		stylecow.cwd(basePath);
 
 		input = command.input || config.input;
 
@@ -57,9 +57,10 @@ program
 		}
 
 		output = command.output || config.output;
+		map = command.map || config.map;
 
-		if (command.code) {
-			config.code = command.code;
+		if (map === 'false') {
+			map = false;
 		}
 
 		stylecow.setConfig(config);
@@ -83,11 +84,13 @@ program
 		}
 
 		//Converts the code and output the result
-		var executeConvert = function (input, output, map) {
+		var executeConvert = function () {
 			var css = stylecow.convertFromFile(input);
+
 			var code = new stylecow.Code(css, {
 				sourceMap: map,
-				output: output
+				file: output,
+				style: command.code
 			});
 
 			if (output) {
@@ -108,7 +111,7 @@ program
 		}
 
 		//Convert the code
-		var css = executeConvert(input, output, command.map);
+		var css = executeConvert();
 
 		//Watch changes
 		if (command.watch || command.socket) {
@@ -128,7 +131,7 @@ program
 					console.log('');
 					console.log('changed detected: ' + filepath);
 
-					getFiles(executeConvert(input, output, command.map)).forEach(function (file) {
+					getFiles(executeConvert()).forEach(function (file) {
 						file = path.relative(cwd, file);
 
 						if (files.indexOf(file) === -1) {
@@ -226,15 +229,6 @@ function modifyConfig (config, callback) {
 		},
 		{
 			type: "input",
-			name: "plugins",
-			message: "Plugins used to transform de css (comma separated)",
-			default: config.plugins.join(','),
-			filter: function (value) {
-				return value ? value.split(',') : [];
-			}
-		},
-		{
-			type: "input",
 			name: "input",
 			message: "Input css filename or directory (optional)"
 		},
@@ -242,8 +236,47 @@ function modifyConfig (config, callback) {
 			type: "input",
 			name: "output",
 			message: "Output css filename or directory (optional)"
+		},
+		{
+			type: "list",
+			name: "map",
+			message: "Generate the css source map?",
+			choices: function (answers) {
+				var options = [
+					{
+						name: 'Yes, embed the map in the css file',
+						value: 'embed'
+					},{
+						name: 'No',
+						value: false
+					}
+				];
+
+				if (answers.output) {
+					var file = answers.output.replace('.css', '.map');
+
+					options.unshift({
+						name: 'Yes, save in ' + file,
+						value: file,
+						default: true
+					});
+				} else {
+					options[1].default = true;
+				}
+
+				return options;
+			}
 		}
 	];
+
+	if (config.plugins.length) {
+		questions.splice(8, 0, {
+			type: "checkbox",
+			name: "plugins",
+			message: config.plugins.length === 1 ? '1 plugin installed' : config.plugins.length + ' plugins installed',
+			choices: config.plugins
+		});
+	}
 
 	inquirer.prompt(questions, function (answers) {
 		var newConfig = {};
@@ -254,6 +287,10 @@ function modifyConfig (config, callback) {
 
 		if (answers.output) {
 			newConfig.output = answers.output;
+		}
+
+		if (answers.map) {
+			newConfig.map = answers.map;
 		}
 
 		newConfig.support = {};
@@ -372,7 +409,7 @@ function defaultConfig (file) {
 
 		if (stylecow) {
 			defaults = stylecow.defaults;
-			defaults.codeStyles = Object.keys(stylecow.codeStyles);
+			defaults.codeStyles = Object.keys(stylecow.Code.styles);
 			pluginPrefix = stylecow.pluginPrefix;
 		}
 
