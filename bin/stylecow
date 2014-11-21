@@ -29,7 +29,7 @@ program
 	.option('-o, --output <file>', 'Use a specific output file instead the defined in the config file')
 	.option('-c, --code <name>', 'Use a specific code style instead the defined in the config file')
 	.option('-w, --watch', 'watches the changes in the input css files')
-	.option('-s, --socket', 'Browser live reload using a web socket')
+	.option('-r, --live-reload', 'Live reload the browser on change the css')
 	.option('-m, --map <dest>', 'Generates a source map? (false|embed|<file.map>)')
 	.action(function (configFile, command) {
 		if (!stylecow) {
@@ -66,7 +66,7 @@ program
 		stylecow.setConfig(config);
 
 		//Live reload
-		if (command.socket) {
+		if (command.liveReload) {
 			//Open the websocket server
 			var WebSocketServer = require('ws').Server,
 				wss = new WebSocketServer({port: 8080});
@@ -130,7 +130,7 @@ program
 		var css = executeConvert();
 
 		//Watch changes
-		if (command.watch || command.socket) {
+		if (command.watch || command.liveReload) {
 			var gaze = require('gaze');
 			var cwd = process.cwd();
 			var files = [];
