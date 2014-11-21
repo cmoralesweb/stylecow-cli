@@ -65,22 +65,32 @@ program
 
 		stylecow.setConfig(config);
 
-		//Open the websocket server
+		//Live reload
 		if (command.socket) {
+			//Open the websocket server
 			var WebSocketServer = require('ws').Server,
 				wss = new WebSocketServer({port: 8080});
-
-			console.log('WebSocket server created in ws://127.0.0.1:8080');
-			console.log('Put this code in the html page:');
-			console.log('');
-			console.log('<script type="text/javascript">');
-			console.log(fs.readFileSync(__dirname + '/ws-script.js', { encoding: 'utf-8'}));
-			console.log('</script>');
-			console.log('');
 
 			wss.on('connection', function (ws) {
 				socket = ws;
 			});
+
+			//Create a webserver to serve the js code
+			var http = require('http');
+			var script = fs.readFileSync(__dirname + '/ws-script.js', {encoding: 'utf-8'});
+
+			http.createServer(function (req, res) {
+				res.writeHead(200, {'Content-Type': 'text/javascript'});
+				res.end(script);
+			}).listen(8081, '127.0.0.1');
+
+			console.log('WebSocket server running at ws://127.0.0.1:8080');
+			console.log('Web server running at http://127.0.0.1:8081');
+
+			console.log('Put this code in the html page:');
+			console.log('');
+			console.log('<script type="text/javascript" src="//127.0.0.1:8081"></script>');
+			console.log('');
 		}
 
 		//Converts the code and output the result
@@ -98,13 +108,19 @@ program
 				console.log('success: Generated "' + output + '"');
 			} else {
 				console.log('');
-				console.log(code.getCode());
+				console.log(code.code);
 				console.log('');
 			}
 
 			if (socket) {
-				socket.send(code.getCode());
-				console.log('success: Code sent to socket');
+				socket.send(JSON.stringify({
+					output: output,
+					code: code.code
+				}), {
+					mask: true
+				}, function () {
+					console.log('success: Code sent to socket');
+				});
 			}
 
 			return css;

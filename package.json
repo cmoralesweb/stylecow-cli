@@ -1,7 +1,7 @@
 {
   "name": "stylecow-cli",
   "description": "Stylecow's command line interface",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "author": "Oscar Otero <oom@oscarotero.com>",
   "homepage": "https://github.com/stylecow/stylecow-cli",
   "bugs": "https://github.com/stylecow/stylecow-cli/issues",
