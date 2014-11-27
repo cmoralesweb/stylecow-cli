@@ -392,30 +392,34 @@ function writeConfig (value, file) {
 }
 
 function defaultConfig (file) {
-	var codeStyles = ["normal", "minify"], defaults;
+	var codeStyles = ["normal", "minify"],
+		defaults = {
+			code: "normal",
+			support: {
+				"explorer": 8.0,
+				"firefox": 30.0,
+				"chrome": 35.0,
+				"safari": 6.0,
+				"opera": 22.0,
+				"android": 4.0,
+				"ios": 6.0
+			},
+			plugins: [],
+			codeStyles: codeStyles
+		};
 
 	if (file) {
-		defaults = readConfig(configFile = path.resolve(process.cwd(), file));
-		defaults.codeStyles = codeStyles;
+		var config = readConfig(configFile = path.resolve(process.cwd(), file));
+		config.codeStyles = codeStyles;
 
-		return defaults;
+		for (var i in defaults) {
+			if (!config[i]) {
+				config[i] = defaults[i];
+			}
+		}
+
+		return config;
 	}
-
-	//Default values
-	defaults = {
-		code: "normal",
-		support: {
-			"explorer": 8.0,
-			"firefox": 30.0,
-			"chrome": 35.0,
-			"safari": 6.0,
-			"opera": 22.0,
-			"android": 4.0,
-			"ios": 6.0
-		},
-		plugins: [],
-		codeStyles: codeStyles
-	};
 
 	//Search for installed stylecow and plugins
 	var node_modules = findup('node_modules/');
