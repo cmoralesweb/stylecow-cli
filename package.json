@@ -1,7 +1,7 @@
 {
   "name": "stylecow-cli",
   "description": "Stylecow's command line interface",
-  "version": "0.6.1",
+  "version": "1.0.0-beta",
   "author": "Oscar Otero <oom@oscarotero.com>",
   "homepage": "https://github.com/stylecow/stylecow-cli",
   "bugs": "https://github.com/stylecow/stylecow-cli/issues",
@@ -14,7 +14,8 @@
     "findup-sync": "^0.1.3",
     "gaze": "*",
     "inquirer": "*",
-    "ws": "*"
+    "ws": "*",
+    "stylecow": "../stylecow"
   },
   "bin": {
     "stylecow": "./bin/stylecow"

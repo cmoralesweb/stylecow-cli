@@ -3,19 +3,7 @@
 var program = require('commander');
 var fs = require('fs');
 var path = require('path');
-var findup = require('findup-sync');
-
-var stylecow = findup('node_modules/stylecow/lib/index.js');
-
-if (stylecow) {
-	stylecow = require(stylecow);
-} else {
-	stylecow = findup('stylecow/lib/index.js');
-
-	if (stylecow) {
-		stylecow = require(stylecow);
-	}
-}
+var stylecow = require('stylecow');
 
 program.version(require('../package.json').version);
 
@@ -32,20 +20,12 @@ program
 	.option('-r, --live-reload', 'Live reload the browser on change the css')
 	.option('-m, --map <dest>', 'Generates a source map? (false|embed|<file.map>)')
 	.action(function (configFile, command) {
-		if (!stylecow) {
-			console.log('');
-			console.log('  error: Unable to find stylecow');
-			console.log('');
-			return;
-		}
-
 		configFile = path.resolve(process.cwd(), configFile || './stylecow.json');
 
 		var config = readConfig(configFile),
 			basePath = path.dirname(configFile),
 			input, output, code, socket;
 
-		stylecow.cwd(basePath);
 
 		input = command.input || config.input;
 
@@ -63,7 +43,24 @@ program
 			map = false;
 		}
 
-		stylecow.setConfig(config);
+		//Configure stylecow
+		stylecow.cwd(basePath);
+
+		if (config.support) {
+			stylecow.minSupport(config.support);
+		}
+
+		if (config.plugins) {
+			config.plugins.forEach(function (plugin) {
+				stylecow.loadPlugin(plugin);
+			});
+		}
+
+		if (config.modules) {
+			config.modules.forEach(function (module) {
+				stylecow.loadNpmModule(module);
+			});
+		}
 
 		//Live reload
 		if (command.liveReload) {
@@ -95,9 +92,11 @@ program
 
 		//Converts the code and output the result
 		var executeConvert = function () {
-			var css = stylecow.convertFromFile(input);
+			var css = stylecow.Root.create(stylecow.Reader.readFile(input));
 
-			var code = new stylecow.Code(css, {
+			stylecow.run(css);
+
+			var code = new stylecow.Coder(css, {
 				sourceMap: map,
 				file: output,
 				style: command.code
@@ -167,10 +166,16 @@ program
 program
 	.command('init [<config>]')
 	.description('Creates a new configuration file')
-	.action(function config (configFile, command) {
-		var defaults = defaultConfig(configFile);
+	.action(function config (file, command) {
+		var config = file ? readConfig(path.resolve(process.cwd(), file)) : {};
 
-		modifyConfig(defaults, function (config, file) {
+		if (!config.support) {
+			config.support = stylecow.support;
+		}
+
+		config.file = file || 'stylecow.json';
+
+		modifyConfig(config, function (config, file) {
 			writeConfig(config, file);
 		});
 	});
@@ -237,21 +242,47 @@ function modifyConfig (config, callback) {
 			default: config.support.ios
 		},
 		{
+			type: "checkbox",
+			name: "plugins",
+			message: "Plugins to apply",
+			choices: fs.readdirSync(__dirname + '/../node_modules/stylecow/node_modules')
+				.filter(function (value) {
+					return value.slice(0, 16) === 'stylecow-plugin-';
+				}).map(function (value) {
+					return value.slice(16);
+				}),
+			default: config.plugins
+		},
+		{
 			type: "list",
 			name: "code",
 			message: "Code style used to generate the css",
-			choices: config.codeStyles,
+			choices: Object.keys(stylecow.Coder.styles),
 			default: config.code
 		},
 		{
 			type: "input",
 			name: "input",
-			message: "Input css filename or directory (optional)"
+			message: function () {
+				if (config.input) {
+					return "Input css filename";
+				} else {
+					return "Input css filename (optional)";
+				}
+			},
+			default: config.input
 		},
 		{
 			type: "input",
 			name: "output",
-			message: "Output css filename or directory (optional)"
+			message: function () {
+				if (config.input) {
+					return "Output css filename";
+				} else {
+					return "Output css filename (optional)";
+				}
+			},
+			default: config.output
 		},
 		{
 			type: "list",
@@ -284,15 +315,6 @@ function modifyConfig (config, callback) {
 			}
 		}
 	];
-
-	if (config.plugins.length) {
-		questions.splice(8, 0, {
-			type: "checkbox",
-			name: "plugins",
-			message: config.plugins.length === 1 ? '1 plugin installed' : config.plugins.length + ' plugins installed',
-			choices: config.plugins
-		});
-	}
 
 	inquirer.prompt(questions, function (answers) {
 		var newConfig = {};
@@ -344,7 +366,7 @@ function modifyConfig (config, callback) {
 
 							return true;
 						},
-						default: 'stylecow.json'
+						default: config.file
 					}
 				], function (answers) {
 					callback(newConfig, answers.file);
@@ -389,60 +411,6 @@ function writeConfig (value, file) {
 
 	console.log('success: Config file saved: `' + file + '`');
 	console.log('');
-}
-
-function defaultConfig (file) {
-	var codeStyles = ["normal", "minify"],
-		defaults = {
-			code: "normal",
-			support: {
-				"explorer": 8.0,
-				"firefox": 30.0,
-				"chrome": 35.0,
-				"safari": 6.0,
-				"opera": 22.0,
-				"android": 4.0,
-				"ios": 6.0
-			},
-			plugins: [],
-			codeStyles: codeStyles
-		};
-
-	if (file) {
-		var config = readConfig(configFile = path.resolve(process.cwd(), file));
-		config.codeStyles = codeStyles;
-
-		for (var i in defaults) {
-			if (!config[i]) {
-				config[i] = defaults[i];
-			}
-		}
-
-		return config;
-	}
-
-	//Search for installed stylecow and plugins
-	var node_modules = findup('node_modules/');
-
-	if (node_modules) {
-		var pluginPrefix = 'stylecow-plugin-';
-
-		if (stylecow) {
-			defaults = stylecow.defaults;
-			defaults.codeStyles = Object.keys(stylecow.Code.styles);
-			pluginPrefix = stylecow.pluginPrefix;
-		}
-
-		var len = pluginPrefix.length;
-
-		defaults.plugins = fs.readdirSync(node_modules).filter(function (value) {
-				return value.slice(0, len) === pluginPrefix;
-			}).map(function (value) {
-				return value.slice(len);
-			}).sort();
-	}
-
-	return defaults;
 }
 
 program.parse(process.argv);
